@@ -69,8 +69,7 @@ class FFALayer(torch.nn.Linear):
         super().__init__(in_features, out_features, bias, device, dtype)
         self.relu = torch.nn.ReLU()
         # self.opt = torch.optim.Adam(self.parameters(), lr=0.03)
-        # self.opt = torch.optim.Adam(self.parameters(), lr=0.0003)
-        self.opt = torch.optim.SGD(self.parameters(), lr=0.1, momentum=0.9)
+        self.opt = torch.optim.Adam(self.parameters(), lr=0.0003)
         self.threshold = 2.0
         # self.num_epochs = 1000
 
@@ -95,14 +94,14 @@ class FFALayer(torch.nn.Linear):
         p_neg = torch.sigmoid(output_neg.pow(2).sum(1) - self.threshold).mean()
         loss = (1/p_pos) + p_neg
 
-        # ---- Loss function on github ----
+        # # ---- Loss function on github ----
         # p_pos = (-output_pos.pow(2).mean(1) + self.threshold)
         # p_neg = (output_neg.pow(2).mean(1) - self.threshold)
         
         # loss = torch.log(1 + torch.exp(torch.cat([
         #         torch.exp(p_pos),
         #         torch.exp(p_neg)]))).mean()
-        print("\tgoodness loss: ", loss)
+        # print("\tgoodness loss: ", loss)
 
         # print("\tp_pos", p_pos.mean())
         # print("\tp_neg", p_neg.mean())
@@ -135,11 +134,14 @@ def load_dataset():
     return train_loader, val_loader
 
 
-def image_labeler(img, label):
+def image_labeler(img, label, test=False):
     img_ = img.clone()
-    # Why does multiplication make a difference?
-    img_[:,:10] *= 0.0
-    img_[range(img.shape[0]),(label%10)] = img.max()  #1
+    if test:
+        img_[:,:10] = 0.1
+    else:
+        # Why does multiplication make a difference?
+        img_[:,:10] *= 0.0
+        img_[range(img.shape[0]),(label%10)] = img.max()  #1
     return img_
 
 
@@ -180,13 +182,13 @@ if __name__ == "__main__":
 
     for i in range(100):
         pos_data = image_labeler(x, y)
-
-        neg_data = image_labeler(x, y+torch.randint(9, (1,)) + 1)
+        neg_data = image_labeler(x, y+torch.randint(low=1, high=9, size=(64,)))
         net.train(pos_data, neg_data, y)
         # net.train(pos_data, pos_data, y)
 
         # accuracy_lst.append((net.forward(x)==y).sum()/len(y))
-        pred_acc.append((net.predict(x)==y).sum()/len(y))
+        test_data = image_labeler(x, y, test=True)
+        pred_acc.append((net.predict(test_data)==y).sum()/len(y))
 
     # plt.plot(accuracy_lst)
     plt.plot(pred_acc)
@@ -195,13 +197,13 @@ if __name__ == "__main__":
 
 
 
-    # # x, y = next(iter(train_loader))
-    # # data = x.view(x.shape[0], -1)
-    # data = image_labeler(x, y)
-    # print(net.predict(data))
-    # print(y)
+    # x, y = next(iter(train_loader))
+    # data = x.view(x.shape[0], -1)
+    data = image_labeler(x, y, test=True)
+    print(net.predict(data))
+    print(y)
 
-    # print((net.predict(data)==y).sum()/len(y))
+    print((net.predict(data)==y).sum()/len(y))
 
 
 # idea, make negative samples from current adversarial attacks
