@@ -46,7 +46,7 @@ class NeuralNet(torch.nn.Module):
     def train(self, x_pos, x_neg, label):
         pos_input, neg_input = x_pos, x_neg
         for i, layer in enumerate(self.layers):
-            print('training layer', i, '...')
+            # print('training layer', i, '...')
             # print(i==len(self.layers)-1)
             pos_input, neg_input = layer.train(pos_input, neg_input, last=(i==len(self.layers)-1))
             
@@ -128,8 +128,8 @@ def load_dataset():
 
     train_dataset = torchvision.datasets.MNIST('./', download=True, train=True, transform=transform)
     val_dataset = torchvision.datasets.MNIST('./', download=True, train=False, transform=transform)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size_test, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True, drop_last=True)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size_test, shuffle=True, drop_last=True)
 
     return train_loader, val_loader
 
@@ -158,52 +158,68 @@ if __name__ == "__main__":
 
     train_loader,val_loader = load_dataset()
 
-    # for i in range(2):
-    #     print('training epoch', i+1, '...')
-    #     for batch_idx, (data, target) in enumerate(tqdm(train_loader)):
-    #         data = data.view(data.shape[0], -1)
-    #         pos_data = image_labeler(data, target)
-    #         neg_data = image_labeler(data, target+4)
+    pred_cnt = 0
 
-    #         # for data, name in zip([x, pos_data, neg_data], ['orig', 'pos', 'neg']):
-    #         #     visualize_sample(data, name)
-    #         # exit()
+    for i in range(1):
+        print('training epoch', i+1, '...')
+        pbar = tqdm(train_loader)
+        for batch_idx, (data, target) in enumerate(pbar):
+            data = data.view(data.shape[0], -1)
+            pos_data = image_labeler(data, target)
+            neg_data = image_labeler(data, target+torch.randint(low=1, high=9, size=(64,)))
 
-    #         # net.train(data, data, y)
-    #         net.train(pos_data, neg_data, target)
+            # for data, name in zip([x, pos_data, neg_data], ['orig', 'pos', 'neg']):
+            #     visualize_sample(data, name)
+            # exit()
+
+            net.train(pos_data, neg_data, target)
+
+            test_data = image_labeler(data, target, test=True)
+            batch_acc = ((net.predict(test_data)==target).sum()/64)
+            pred_cnt += batch_acc
+            pbar.set_postfix({'acc': pred_cnt/(batch_idx + 1), 'batch_acc': batch_acc})
+        
+        print("pred accuracy: ", float(pred_cnt)/len(train_loader))
+
+
+        # test_data = image_labeler(data, target, test=True)
+        # pred_acc.append((net.predict(test_data)==target).sum()/len(target))
+
+        # plt.plot(pred_acc)
+        # plt.show()
 
     #         break
 
-    x, y = next(iter(train_loader))
-    x = x.view(x.shape[0], -1)
+    # x, y = next(iter(train_loader))
+    # x = x.view(x.shape[0], -1)
 
-    # accuracy_lst = []
-    pred_acc = []
+    # # accuracy_lst = []
+    # pred_acc = []
 
-    for i in range(100):
-        pos_data = image_labeler(x, y)
-        neg_data = image_labeler(x, y+torch.randint(low=1, high=9, size=(64,)))
-        net.train(pos_data, neg_data, y)
-        # net.train(pos_data, pos_data, y)
+    # for i in range(100):
+    #     pos_data = image_labeler(x, y)
+    #     neg_data = image_labeler(x, y+torch.randint(low=1, high=9, size=(64,)))
+    #     net.train(pos_data, neg_data, y)
+    #     # net.train(pos_data, pos_data, y)
 
-        # accuracy_lst.append((net.forward(x)==y).sum()/len(y))
-        test_data = image_labeler(x, y, test=True)
-        pred_acc.append((net.predict(test_data)==y).sum()/len(y))
+    #     # accuracy_lst.append((net.forward(x)==y).sum()/len(y))
+    #     test_data = image_labeler(x, y, test=True)
+    #     pred_acc.append((net.predict(test_data)==y).sum()/len(y))
 
-    # plt.plot(accuracy_lst)
-    plt.plot(pred_acc)
-    plt.show()
+    # # plt.plot(accuracy_lst)
+    # plt.plot(pred_acc)
+    # plt.show()
 
 
 
 
     # x, y = next(iter(train_loader))
     # data = x.view(x.shape[0], -1)
-    data = image_labeler(x, y, test=True)
-    print(net.predict(data))
-    print(y)
+    # data = image_labeler(x, y, test=True)
+    # print(net.predict(data))
+    # print(y)
 
-    print((net.predict(data)==y).sum()/len(y))
+    # print((net.predict(data)==y).sum()/len(y))
 
 
 # idea, make negative samples from current adversarial attacks
