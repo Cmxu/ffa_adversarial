@@ -10,119 +10,92 @@ import math
 input_size = 784
 output_size = 10
 
+hidden_size = 200
+
+batch_size_train = 64
+batch_size_test = 1000
+random_seed = 1
+torch.manual_seed(random_seed)
+# torch.backends.cudnn.enabled = False
+
 
 class NeuralNet(torch.nn.Module):
     def __init__(self):
+        super(NeuralNet, self).__init__()
         # four hidden layers of 2000 ReLUs each for 100 epochs
         self.layers = []
-        self.layers += [FFALayer(input_size, 2000)]
-        self.layers += [FFALayer(2000, 2000)]
-        self.layers += [FFALayer(2000, 2000)]
-        self.layers += [FFALayer(2000, output_size)]
+        self.layers += [FFALayer(input_size, hidden_size)]
+        self.layers += [FFALayer(hidden_size, hidden_size)]
+        self.layers += [FFALayer(hidden_size, hidden_size)]
+        self.layers += [FFALayer(hidden_size, hidden_size)]
+        self.linear = torch.nn.Linear(hidden_size, output_size)
 
-        self.opt = torch.optim.Adam(self.layers[3].parameters(), lr=0.0003)
+        self.opt = torch.optim.Adam(self.linear.parameters(), lr=0.0003)
+        # self.opt = torch.optim.Adam(self.linear.parameters(), lr=0.03)
 
-    
     def forward(self, input):
+        layer_out = []
         output = input
+
         for i, layer in enumerate(self.layers):
+            if i==1:    continue
             output = layer(output)
+            layer_out.append(output)
+        layer_out = torch.stack(layer_out)
+        output = self.linear(torch.mean(layer_out, dim=0))
         return torch.nn.functional.softmax(output, dim=1).argmax(1)
 
-
-    def predict(self, x):
-        goodness_per_label = []
-        for label in range(10):
-            h = image_labeler(x, label)
-            goodness = []
-            for layer in self.layers:
-                h = layer(h)
-                goodness += [h.pow(2).mean(1)]
-            goodness_per_label += [sum(goodness).unsqueeze(1)]
-        goodness_per_label = torch.cat(goodness_per_label, 1)
-        return goodness_per_label.argmax(1)
-
-
     def train(self, x_pos, x_neg, label):
+        linear_input = []
         pos_input, neg_input = x_pos, x_neg
         for i, layer in enumerate(self.layers):
             # print('training layer', i, '...')
             # print(i==len(self.layers)-1)
-            pos_input, neg_input = layer.train(pos_input, neg_input, last=(i==len(self.layers)-1))
-            
-        
-        # # TODO: Look into loss for negative examples
-        # # Loss for final softmax
-        loss = torch.nn.CrossEntropyLoss()
-        output_pos = loss(pos_input, label)
+            pos_input, neg_input = layer.train(pos_input, neg_input)
+            linear_input.append(pos_input)
 
-        # print("output_pos", output_pos)
+        linear_input = torch.stack(linear_input)
+        pred = self.linear(torch.mean(linear_input, dim=0))
+
+        # TODO: Look into loss for negative examples
+        # Loss for final softmax
+        loss = torch.nn.CrossEntropyLoss()
+        output_pos = loss(pred, label)
 
         self.opt.zero_grad()
         output_pos.backward()
         self.opt.step()
 
 
-class FFALayer(torch.nn.Linear):
-    def __init__(self, in_features, out_features,
-                 bias=True, device=None, dtype=None):
-        super().__init__(in_features, out_features, bias, device, dtype)
+class FFALayer(torch.nn.Module):
+    def __init__(self, in_features, out_features):
+        super(FFALayer, self).__init__()
+        self.linear = torch.nn.Linear(in_features, out_features)
         self.relu = torch.nn.ReLU()
-        # self.opt = torch.optim.Adam(self.parameters(), lr=0.03)
         self.opt = torch.optim.Adam(self.parameters(), lr=0.0003)
         self.threshold = 2.0
-        # self.num_epochs = 1000
 
-    def forward(self, x):
-        x = x / torch.sqrt(x.norm(2, 1, keepdim=True) + 1e-4)
-        output = self.relu(
-            torch.matmul(x, self.weight.T) + self.bias.unsqueeze(0)
-        )
+    def forward(self, input):
+        output = self.relu(self.linear(input))
+        output = output / torch.sqrt(output.norm(2, 1, keepdim=True) + 1e-4)
         return output
-        # x = x / (x.norm(2, 1, keepdim=True) + 1e-4)
-        # return self.relu(
-        #     torch.mm(x, self.weight.T) +
-        #     self.bias.unsqueeze(0))
 
-    def train(self, x_pos, x_neg, last=False):
-        # for i in tqdm(range(10)):
-        output_pos = self.forward(x_pos)
-        output_neg = self.forward(x_neg)
+    def train(self, x_pos, x_neg):
+        output_pos = self.relu(self.linear(x_pos))
+        output_neg = self.relu(self.linear(x_neg))
 
-        # positive example
         p_pos = torch.sigmoid(output_pos.pow(2).sum(1) - self.threshold).mean()
         p_neg = torch.sigmoid(output_neg.pow(2).sum(1) - self.threshold).mean()
         loss = (1/p_pos) + p_neg
-
-        # # ---- Loss function on github ----
-        # p_pos = (-output_pos.pow(2).mean(1) + self.threshold)
-        # p_neg = (output_neg.pow(2).mean(1) - self.threshold)
-        
-        # loss = torch.log(1 + torch.exp(torch.cat([
-        #         torch.exp(p_pos),
-        #         torch.exp(p_neg)]))).mean()
-        # print("\tgoodness loss: ", loss)
-
-        # print("\tp_pos", p_pos.mean())
-        # print("\tp_neg", p_neg.mean())
 
         self.opt.zero_grad()
         loss.backward()
         self.opt.step()
 
-        if last:
-            return self.forward(x_pos), self.forward(x_neg)
-
         return self.forward(x_pos).detach(), self.forward(x_neg).detach()
     
 
 def load_dataset():
-    batch_size_train = 64
-    batch_size_test = 1000
-    random_seed = 1
-    torch.manual_seed(random_seed)
-    # torch.backends.cudnn.enabled = False
-
     transform = torchvision.transforms.Compose([torchvision.transforms.ToTensor(),
                                                 torchvision.transforms.Normalize((0.1307,), (0.3081,))])
 
@@ -158,15 +131,16 @@ if __name__ == "__main__":
 
     train_loader,val_loader = load_dataset()
 
+    pred_acc = []
     pred_cnt = 0
 
-    for i in range(1):
-        print('training epoch', i+1, '...')
+    for epoch in range(10):
+        print('training epoch', epoch+1, '...')
         pbar = tqdm(train_loader)
         for batch_idx, (data, target) in enumerate(pbar):
             data = data.view(data.shape[0], -1)
             pos_data = image_labeler(data, target)
-            neg_data = image_labeler(data, target+torch.randint(low=1, high=9, size=(64,)))
+            neg_data = image_labeler(data, target+torch.randint(low=1, high=9, size=(batch_size_train,)))
 
             # for data, name in zip([x, pos_data, neg_data], ['orig', 'pos', 'neg']):
             #     visualize_sample(data, name)
@@ -174,52 +148,17 @@ if __name__ == "__main__":
 
             net.train(pos_data, neg_data, target)
 
+            # Test
             test_data = image_labeler(data, target, test=True)
-            batch_acc = ((net.predict(test_data)==target).sum()/64)
+            batch_acc = ((net.forward(test_data)==target).sum()/batch_size_train)
             pred_cnt += batch_acc
             pbar.set_postfix({'acc': pred_cnt/(batch_idx + 1), 'batch_acc': batch_acc})
         
-        print("pred accuracy: ", float(pred_cnt)/len(train_loader))
+        pred_acc.append(float(pred_cnt)/len(train_loader))
+        print(f"epoch {epoch+1} train accuracy: {pred_acc[-1]}")
+        pred_cnt = 0
 
-
-        # test_data = image_labeler(data, target, test=True)
-        # pred_acc.append((net.predict(test_data)==target).sum()/len(target))
-
-        # plt.plot(pred_acc)
-        # plt.show()
-
-    #         break
-
-    # x, y = next(iter(train_loader))
-    # x = x.view(x.shape[0], -1)
-
-    # # accuracy_lst = []
-    # pred_acc = []
-
-    # for i in range(100):
-    #     pos_data = image_labeler(x, y)
-    #     neg_data = image_labeler(x, y+torch.randint(low=1, high=9, size=(64,)))
-    #     net.train(pos_data, neg_data, y)
-    #     # net.train(pos_data, pos_data, y)
-
-    #     # accuracy_lst.append((net.forward(x)==y).sum()/len(y))
-    #     test_data = image_labeler(x, y, test=True)
-    #     pred_acc.append((net.predict(test_data)==y).sum()/len(y))
-
-    # # plt.plot(accuracy_lst)
-    # plt.plot(pred_acc)
-    # plt.show()
-
-
-
-
-    # x, y = next(iter(train_loader))
-    # data = x.view(x.shape[0], -1)
-    # data = image_labeler(x, y, test=True)
-    # print(net.predict(data))
-    # print(y)
-
-    # print((net.predict(data)==y).sum()/len(y))
-
+    plt.plot(pred_acc)
+    plt.show()
 
 # idea, make negative samples from current adversarial attacks
