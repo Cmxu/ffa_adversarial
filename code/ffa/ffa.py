@@ -19,9 +19,9 @@ torch.manual_seed(random_seed)
 # torch.backends.cudnn.enabled = False
 
 
-class NeuralNet(torch.nn.Module):
+class FFANet(torch.nn.Module):
     def __init__(self):
-        super(NeuralNet, self).__init__()
+        super().__init__()
         # four hidden layers of 2000 ReLUs each for 100 epochs
         self.layers = []
         self.layers += [FFALayer(input_size, hidden_size)]
@@ -30,8 +30,9 @@ class NeuralNet(torch.nn.Module):
         self.layers += [FFALayer(hidden_size, hidden_size)]
         self.linear = torch.nn.Linear(hidden_size, output_size)
 
-        self.opt = torch.optim.Adam(self.linear.parameters(), lr=0.0003)
-        # self.opt = torch.optim.Adam(self.linear.parameters(), lr=0.03)
+        # self.opt = torch.optim.Adam(self.linear.parameters(), lr=0.0003)
+        self.opt = torch.optim.Adam(self.linear.parameters(), lr=0.03)
+
 
     def forward(self, input):
         layer_out = []
@@ -43,7 +44,8 @@ class NeuralNet(torch.nn.Module):
             layer_out.append(output)
         layer_out = torch.stack(layer_out)
         output = self.linear(torch.mean(layer_out, dim=0))
-        return torch.nn.functional.softmax(output, dim=1).argmax(1)
+        # return torch.nn.functional.softmax(output, dim=1).argmax(1)
+        return output
 
     def train(self, x_pos, x_neg, label):
         linear_input = []
@@ -93,6 +95,7 @@ class FFALayer(torch.nn.Module):
         self.opt.step()
 
         return self.forward(x_pos).detach(), self.forward(x_neg).detach()
+        # return self.forward(x_pos), self.forward(x_neg)
     
 
 def load_dataset():
@@ -127,14 +130,14 @@ def visualize_sample(data, name='', idx=0):
 
 
 if __name__ == "__main__":
-    net = NeuralNet()
+    net = FFANet()
 
     train_loader,val_loader = load_dataset()
 
     pred_acc = []
     pred_cnt = 0
 
-    for epoch in range(10):
+    for epoch in range(5):
         print('training epoch', epoch+1, '...')
         pbar = tqdm(train_loader)
         for batch_idx, (data, target) in enumerate(pbar):
@@ -150,12 +153,16 @@ if __name__ == "__main__":
 
             # Test
             test_data = image_labeler(data, target, test=True)
-            batch_acc = ((net.forward(test_data)==target).sum()/batch_size_train)
+
+            predictions = torch.nn.functional.softmax(net.forward(test_data), dim=1).argmax(1)
+            batch_acc = ((predictions==target).sum()/batch_size_train)
+            
             pred_cnt += batch_acc
             pbar.set_postfix({'acc': pred_cnt/(batch_idx + 1), 'batch_acc': batch_acc})
         
         pred_acc.append(float(pred_cnt)/len(train_loader))
         print(f"epoch {epoch+1} train accuracy: {pred_acc[-1]}")
+        torch.save(net.state_dict(), f"./epoch{epoch+1}_acc{round(pred_acc[-1],2)}.pth")
         pred_cnt = 0
 
     plt.plot(pred_acc)

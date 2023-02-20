@@ -3,10 +3,13 @@ import torch.nn.functional as F
 import numpy as np
 from tqdm.notebook import tqdm
 from matplotlib import pyplot as plt
-from data_utils import cifar_class_idx
+# from data_utils import cifar_class_idx
 
 def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
+    # preds = outputs
+    # print(outputs)
+    # print(labels)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
 def asr(ds, k, adv_alg = None, verbose = False, **kwargs):
@@ -27,32 +30,32 @@ def scale_im(im):
 def expand_first(im):
     return im.reshape(1, *im.shape)
 
-def show_attack(ims, attacks, mdl, class_idx = cifar_class_idx()):
-    if ims.dim() == 3:
-        ims = expand_first(ims)
-    if attacks.dim() == 3:
-        attacks = expand_first(attacks)
-    plt.figure()
-    f, axarr = plt.subplots(3, ims.shape[0], figsize = (ims.shape[0], 4))
-    labels = torch.argmax(mdl(ims), axis = 1).cpu().numpy()
-    labels_att = torch.argmax(mdl(attacks), axis = 1).cpu().numpy()
-    att_batch_size = attacks.shape[0]
-    labels_adv = torch.argmax(mdl(ims + attacks), axis = 1).cpu().numpy()
-    ims = ims.detach().cpu()
-    attacks = attacks.detach().cpu()
-    for i in range(ims.shape[0]):
-        im = ims[i, :, :, :]
-        attack = attacks[i,:,:,:] if att_batch_size > 1 else torch.squeeze(attacks)
-        axarr[(0, i) if ims.shape[0] > 1 else 0].imshow(scale_im(im).permute(1,2,0), interpolation='nearest')
-        axarr[(0, i) if ims.shape[0] > 1 else 0].set_title(class_idx[int(labels[i])])
-        axarr[(0, i) if ims.shape[0] > 1 else 0].axis('off')
-        axarr[(1, i) if ims.shape[0] > 1 else 1].imshow(scale_im(attack).permute(1,2,0), interpolation='nearest')
-        axarr[(1, i) if ims.shape[0] > 1 else 1].set_title(class_idx[int(labels_att[i] if att_batch_size > 1 else labels_att)])
-        axarr[(1, i) if ims.shape[0] > 1 else 1].axis('off')
-        axarr[(2, i) if ims.shape[0] > 1 else 2].imshow(scale_im(im + attack).permute(1,2,0), interpolation='nearest')
-        axarr[(2, i) if ims.shape[0] > 1 else 2].set_title(class_idx[int(labels_adv[i])])
-        axarr[(2, i) if ims.shape[0] > 1 else 2].axis('off')
-    plt.show()
+# def show_attack(ims, attacks, mdl, class_idx = cifar_class_idx()):
+#     if ims.dim() == 3:
+#         ims = expand_first(ims)
+#     if attacks.dim() == 3:
+#         attacks = expand_first(attacks)
+#     plt.figure()
+#     f, axarr = plt.subplots(3, ims.shape[0], figsize = (ims.shape[0], 4))
+#     labels = torch.argmax(mdl(ims), axis = 1).cpu().numpy()
+#     labels_att = torch.argmax(mdl(attacks), axis = 1).cpu().numpy()
+#     att_batch_size = attacks.shape[0]
+#     labels_adv = torch.argmax(mdl(ims + attacks), axis = 1).cpu().numpy()
+#     ims = ims.detach().cpu()
+#     attacks = attacks.detach().cpu()
+#     for i in range(ims.shape[0]):
+#         im = ims[i, :, :, :]
+#         attack = attacks[i,:,:,:] if att_batch_size > 1 else torch.squeeze(attacks)
+#         axarr[(0, i) if ims.shape[0] > 1 else 0].imshow(scale_im(im).permute(1,2,0), interpolation='nearest')
+#         axarr[(0, i) if ims.shape[0] > 1 else 0].set_title(class_idx[int(labels[i])])
+#         axarr[(0, i) if ims.shape[0] > 1 else 0].axis('off')
+#         axarr[(1, i) if ims.shape[0] > 1 else 1].imshow(scale_im(attack).permute(1,2,0), interpolation='nearest')
+#         axarr[(1, i) if ims.shape[0] > 1 else 1].set_title(class_idx[int(labels_att[i] if att_batch_size > 1 else labels_att)])
+#         axarr[(1, i) if ims.shape[0] > 1 else 1].axis('off')
+#         axarr[(2, i) if ims.shape[0] > 1 else 2].imshow(scale_im(im + attack).permute(1,2,0), interpolation='nearest')
+#         axarr[(2, i) if ims.shape[0] > 1 else 2].set_title(class_idx[int(labels_adv[i])])
+#         axarr[(2, i) if ims.shape[0] > 1 else 2].axis('off')
+#     plt.show()
 
 def project_lp(v, norm, xi, exact = False, device = torch.device('cuda:0')):
     if v.dim() == 4:
