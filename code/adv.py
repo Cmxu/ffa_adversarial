@@ -11,10 +11,15 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 train_loader, val_loader = load_dataset()
 
+def load_weights(model, weights_path):
+    for idx, layer in enumerate(model.layers):
+        layer.load_state_dict(torch.load(f"{weights_path}/ffa_{idx}.pth"))
+    model.load_state_dict(torch.load(f"{weights_path}/linear.pth"))
+
+
+
 mdl = FFANet()
-# mdl.load_state_dict(torch.load('./epoch2_acc0.86.pth'))
-mdl.load_state_dict(torch.load('./epoch1_acc0.77.pth'))
-# mdl.load_state_dict(torch.load('./models/epoch1_acc0.48.pth'))
+load_weights(mdl, "./models/ffa/epoch2")
 
 def fgsm(x, y, model, norm = np.inf, xi = 1e-1, step_size = 1e-1, device = "cpu"):
     v = torch.zeros_like(x, requires_grad = True, device = device)
@@ -30,5 +35,5 @@ x, y = next(iter(val_loader))
 x = x.view(x.shape[0], -1)
 x = image_labeler(x, y, test=True)
 
-print('Base Batch Accuracy {}'.format(accuracy(mdl.forward(x), y))) # Varies with batch, mine ~ 0.875
-print('FGSM Batch Accuracy: {}'.format(accuracy(mdl.forward(x + fgsm(x, y, mdl)), y))) # Varies with batch, mine ~ 0
+print('Base Batch Accuracy {}'.format(accuracy(mdl.forward(x), y)))
+print('FGSM Batch Accuracy: {}'.format(accuracy(mdl.forward(x + fgsm(x, y, mdl)), y)))

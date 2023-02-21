@@ -10,12 +10,12 @@ import math
 input_size = 784
 output_size = 10
 
-hidden_size = 200
+hidden_size = 100
 
 batch_size_train = 64
 batch_size_test = 1000
-random_seed = 1
-torch.manual_seed(random_seed)
+# random_seed = 1
+# torch.manual_seed(random_seed)
 # torch.backends.cudnn.enabled = False
 
 
@@ -30,8 +30,8 @@ class FFANet(torch.nn.Module):
         self.layers += [FFALayer(hidden_size, hidden_size)]
         self.linear = torch.nn.Linear(hidden_size, output_size)
 
-        # self.opt = torch.optim.Adam(self.linear.parameters(), lr=0.0003)
-        self.opt = torch.optim.Adam(self.linear.parameters(), lr=0.03)
+        self.opt = torch.optim.Adam(self.linear.parameters(), lr=0.0003)
+        # self.opt = torch.optim.Adam(self.linear.parameters(), lr=0.1)
 
 
     def forward(self, input):
@@ -129,6 +129,22 @@ def visualize_sample(data, name='', idx=0):
     plt.show()
 
 
+def save_model_weights(model, epoch, accuracy, model_name="ffa"):
+    import os
+
+    model_base_path = f"./models/{model_name}/epoch{epoch+1}"
+    os.makedirs(model_base_path, exist_ok=True)
+
+    # accuracy
+    text_file = open(f"{model_base_path}/accuracy.txt", "w")
+    text_file.write(str(round(accuracy, 3)))
+    text_file.close()
+
+    for idx, layer in enumerate(model.layers):
+        torch.save(layer.state_dict(), f"{model_base_path}/ffa_{idx}.pth")
+    torch.save(model.state_dict(), f"{model_base_path}/linear.pth")
+
+
 if __name__ == "__main__":
     net = FFANet()
 
@@ -162,8 +178,9 @@ if __name__ == "__main__":
         
         pred_acc.append(float(pred_cnt)/len(train_loader))
         print(f"epoch {epoch+1} train accuracy: {pred_acc[-1]}")
-        torch.save(net.state_dict(), f"./epoch{epoch+1}_acc{round(pred_acc[-1],2)}.pth")
         pred_cnt = 0
+
+        save_model_weights(net, epoch, pred_acc[-1])
 
     plt.plot(pred_acc)
     plt.show()
