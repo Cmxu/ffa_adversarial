@@ -7,9 +7,6 @@ from matplotlib import pyplot as plt
 
 def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
-    # preds = outputs
-    # print(outputs)
-    # print(labels)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
 def asr(ds, k, adv_alg = None, verbose = False, **kwargs):
