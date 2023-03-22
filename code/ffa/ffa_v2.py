@@ -58,17 +58,20 @@ def image_labeler(img, label=1, test=False):
 
 
 class Net(torch.nn.Module):
-    def __init__(self, dims):
+    def __init__(self, input_size=784, output_size=10, num_hidden = 4, hidden_size=100):
         super().__init__()
         self.layers = []
-        for d in range(len(dims) - 1):
-            # self.layers += [Layer(dims[d], dims[d + 1]).cuda()]
-            self.layers += [Layer(dims[d], dims[d + 1])]
-        self.linear = torch.nn.Linear(100, 10)
-        self.loss = torch.nn.CrossEntropyLoss()
+        for l in range(num_hidden):
+            if (l==0):
+                self.layers += [Layer(input_size, hidden_size)]
+                # self.layers += [Layer(input_size, hidden_size).cuda()]
+            else:
+                self.layers += [Layer(hidden_size, hidden_size)]
+                # self.layers += [Layer(hidden_size, hidden_size).cuda()]
+        self.linear = torch.nn.Linear(hidden_size, output_size)
 
+        self.loss = torch.nn.CrossEntropyLoss()
         self.opt = Adam(self.parameters(), lr=0.03, weight_decay=0.1)
-        # self.opt = Adam(self.parameters(), lr=0.03)
         self.num_epochs = 1000
 
     def forward(self, x):
@@ -88,9 +91,7 @@ class Net(torch.nn.Module):
         for i, layer in enumerate(self.layers):
             print('training layer', i, '...')
             h_pos, h_neg = layer.train(h_pos, h_neg, self.num_epochs)
-            # h_pos, h_neg = layer.train(h_pos, h_neg, 100)
-            if i==0:
-                continue
+            if i==0:    continue
             linear_input.append(h_pos)
         linear_input = torch.stack(linear_input)
 
@@ -166,7 +167,7 @@ if __name__ == "__main__":
                                             device,
                                             dataset_path="./MNIST")
 
-    net = Net([784, 100, 100, 100, 100]).to(device)
+    net = Net().to(device)
 
     # Training
     pred_cnt = 0
@@ -209,7 +210,8 @@ if __name__ == "__main__":
     pred_cnt = 0
     pbar = tqdm(test_loader)
     for batch_idx, (data, target) in enumerate(pbar):
-        # data, target = data.cuda(), target.cuda()
+        if device==torch.device("cuda"):
+            data, target = data.cuda(), target.cuda()
         data_test = image_labeler(data, test=True)
 
         pred = net.forward(data_test)
