@@ -66,17 +66,17 @@ def project_lp(v, norm, xi, exact = False, device = torch.device('cuda:0')):
             else:
                 v = v * xi/torch.norm(v, p = 2, dim = (1,2,3)).reshape((batch_size, 1, 1, 1))
         elif norm == np.inf:
-            v = torch.sign(v) * torch.minimum(torch.abs(v), xi*torch.ones(v.shape, device = device))
+            v = torch.sign(v) * torch.minimum(torch.abs(v), xi*torch.ones(v.shape))
         else:
             raise ValueError('L_{} norm not implemented'.format(norm))
     else:
         if norm == 2:
             if batch_size == 1:
-                v = v * torch.minimum(torch.ones((1), device = device), xi/torch.norm(v, p = 2))
+                v = v * torch.minimum(torch.ones((1)), xi/torch.norm(v, p = 2))
             else:
-                v = v * torch.minimum(xi/torch.norm(v, p = 2, dim = (1,2,3)), torch.ones(batch_size, device = device)).reshape((batch_size, 1, 1, 1))
+                v = v * torch.minimum(xi/torch.norm(v, p = 2, dim = (1,2,3)), torch.ones(batch_size)).reshape((batch_size, 1, 1, 1))
         elif norm == np.inf:
-            v = torch.sign(v) * torch.minimum(torch.abs(v), xi*torch.ones(v.shape, device = device))
+            v = torch.sign(v) * torch.minimum(torch.abs(v), xi*torch.ones(v.shape))
         else:
             raise ValueError('L_{} norm not implemented'.format(norm))
     return v

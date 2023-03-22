@@ -1,0 +1,9 @@
+# shchoi4 config
+base_path: "/ffa_adversarial/"
+dataset_path: "/ffa_adversarial/data/MNIST"
+
+exp-name: "ffa"
+
+batch_size:
+  train: 64
+  test: 1000

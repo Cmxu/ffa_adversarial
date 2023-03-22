@@ -22,17 +22,26 @@ def load_mnist(batch_size_train, batch_size_test, device, dataset_path="./"):
                             download=True,
                             train=False,
                             transform=transform)
-    train_loader = torch.utils.data.DataLoader(train_dataset,
-                                                batch_size=batch_size_train,
-                                                shuffle=True,
-                                                drop_last=True,
-                                                num_workers=4,
-                                                pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(test_dataset,
-                                                batch_size=batch_size_test,
-                                                shuffle=True,
-                                                num_workers=4,
-                                                pin_memory=True)
+    if device==torch.device("cuda"):
+        train_loader = torch.utils.data.DataLoader(train_dataset,
+                                                    batch_size=batch_size_train,
+                                                    shuffle=True,
+                                                    drop_last=True,
+                                                    num_workers=4,
+                                                    pin_memory=True)
+        test_loader = torch.utils.data.DataLoader(test_dataset,
+                                                    batch_size=batch_size_test,
+                                                    shuffle=True,
+                                                    num_workers=4,
+                                                    pin_memory=True)
+    else:
+        train_loader = torch.utils.data.DataLoader(train_dataset,
+                                                    batch_size=batch_size_train,
+                                                    shuffle=True,
+                                                    drop_last=True,)
+        test_loader = torch.utils.data.DataLoader(test_dataset,
+                                                    batch_size=batch_size_test,
+                                                    shuffle=True,)
 
     return train_loader, test_loader
 
@@ -53,7 +62,8 @@ class Net(torch.nn.Module):
         super().__init__()
         self.layers = []
         for d in range(len(dims) - 1):
-            self.layers += [Layer(dims[d], dims[d + 1]).cuda()]
+            # self.layers += [Layer(dims[d], dims[d + 1]).cuda()]
+            self.layers += [Layer(dims[d], dims[d + 1])]
         self.linear = torch.nn.Linear(100, 10)
         self.loss = torch.nn.CrossEntropyLoss()
 
@@ -154,16 +164,18 @@ if __name__ == "__main__":
     train_loader,test_loader = load_mnist(batch_size_train,
                                             batch_size_test,
                                             device,
-                                            dataset_path="/home/shchoi4/ffa_adversarial/code/MNIST")
+                                            dataset_path="./MNIST")
 
-    net = Net([784, 100, 100, 100, 100]).to(torch.device("cuda"))
+    net = Net([784, 100, 100, 100, 100]).to(device)
 
     # Training
     pred_cnt = 0
     pbar = tqdm(train_loader)
     for batch_idx, (data, target) in enumerate(pbar):
         x, y = data, target
-        x, y = x.cuda(), y.cuda()
+
+        if device==torch.device("cuda"):
+            x, y = x.cuda(), y.cuda()
         x_pos = image_labeler(x, y)
         rnd = torch.randperm(x.size(0))
         x_neg = image_labeler(x, y[rnd])
@@ -197,7 +209,7 @@ if __name__ == "__main__":
     pred_cnt = 0
     pbar = tqdm(test_loader)
     for batch_idx, (data, target) in enumerate(pbar):
-        data, target = data.cuda(), target.cuda()
+        # data, target = data.cuda(), target.cuda()
         data_test = image_labeler(data, test=True)
 
         pred = net.forward(data_test)
